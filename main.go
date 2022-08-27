@@ -7,8 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/helper"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/mitchellh/go-homedir"
 )
 
@@ -110,6 +114,86 @@ func pullNotes(notesPath string, encPath string, passphrase string, privateKey [
 
 }
 
+func pullGit(repoPath string, privateKeyPath string) {
+
+  publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
+
+  if err != nil {
+    log.Fatalln("Cant init ssh key", err)
+  }
+
+  log.Println("=> Pulling the repo: ", repoPath)
+  r, err := git.PlainOpen(repoPath)
+
+  if err != nil {
+    log.Fatalln("Cant open repo", err)
+  }
+
+  w, err := r.Worktree()
+
+  if err != nil {
+    log.Fatalln("Cant init worktree", err)
+  }
+
+  err = w.Pull(&git.PullOptions{
+    RemoteName: "origin",
+    Auth: publicKeys,
+  })
+
+  if err != nil {
+    log.Println("==> ", err)
+  }
+}
+
+func pushGit(repoPath string, privateKeyPath string) {
+
+  publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
+
+  if err != nil {
+    log.Fatalln("Cant init ssh key", err)
+  }
+
+  log.Println("=> Pushing the repo: ", repoPath)
+  r, err := git.PlainOpen(repoPath)
+
+  if err != nil {
+    log.Fatalln("Cant open repo", err)
+  }
+
+  w, err := r.Worktree()
+
+  if err != nil {
+    log.Fatalln("Cant init worktree", err)
+  }
+
+  _, err = w.Add("personal")
+
+  if err != nil {
+    log.Fatalln("Cant add files", err)
+  }
+
+  _, err = w.Commit("Auto update", &git.CommitOptions{
+		Author: &object.Signature{
+			Name:  "iaroki",
+			Email: "iaroki@protonmail.com",
+			When:  time.Now(),
+		},
+  })
+
+  if err != nil {
+    log.Fatalln("Cant commit files", err)
+  }
+
+  err = r.Push(&git.PushOptions{
+    RemoteName: "origin",
+    Auth: publicKeys,
+  })
+
+  if err != nil {
+    log.Println("==> ", err)
+  }
+}
+
 func gracefulShutdown() {
   log.Println("Please use [pull] or [push] action.")
   os.Exit(0)
@@ -126,20 +210,26 @@ func main() {
 
   homeDir, _ := homedir.Dir()
   notesDir := "zettelkasten"
-  encDir := "enc"
+  gitDir := "dev/github.com/notes"
+  encDir := "personal"
   notesPath := filepath.Join(homeDir, notesDir)
-  encPath := filepath.Join(homeDir, encDir)
+  encPath := filepath.Join(homeDir, gitDir, encDir)
 
   if action == "pull" {
-    privateKeyPath:= filepath.Join(homeDir, ".gnupg/private.gpg")
-    privateKey, err := ioutil.ReadFile(privateKeyPath)
 
-    if err != nil {
-      log.Fatalln("Cant open private key file", err)
-    }
+  pullGit(filepath.Join(homeDir, gitDir), filepath.Join(homeDir, ".ssh", "id_rsa"))
 
-    pullNotes(notesPath, encPath, "", privateKey)
+  privateKeyPath:= filepath.Join(homeDir, ".gnupg/private.gpg")
+  privateKey, err := ioutil.ReadFile(privateKeyPath)
+
+  if err != nil {
+    log.Fatalln("Cant open private key file", err)
+  }
+
+  pullNotes(notesPath, encPath, "", privateKey)
+
   } else if action == "push" {
+
     publicKeyPath:= filepath.Join(homeDir, ".gnupg/public.gpg")
     publicKey, err := ioutil.ReadFile(publicKeyPath)
 
@@ -148,7 +238,10 @@ func main() {
     }
 
     pushNotes(notesPath, encPath, publicKey)
+    pushGit(filepath.Join(homeDir, gitDir), filepath.Join(homeDir, ".ssh", "id_rsa"))
+
   } else {
+
     gracefulShutdown()
   }
 
