@@ -33,4 +33,5 @@ require (
 	github.com/sirupsen/logrus v1.4.2 // indirect
 	golang.org/x/sys v0.0.0-20211007075335-d3039528d8ac // indirect
 	golang.org/x/text v0.3.6 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 )

@@ -208,18 +208,21 @@ func main() {
     gracefulShutdown()
   }
 
+  configPath := findConfig()
+  appConfig := getConfig(configPath)
+
   homeDir, _ := homedir.Dir()
-  notesDir := "zettelkasten"
-  gitDir := "dev/github.com/notes"
-  encDir := "personal"
+  notesDir := appConfig.NotesDir
+  gitDir := appConfig.GitDir
+  encDir := appConfig.EncDir
   notesPath := filepath.Join(homeDir, notesDir)
-  encPath := filepath.Join(homeDir, gitDir, encDir)
+  encPath := filepath.Join(gitDir, encDir)
 
   if action == "pull" {
 
-  pullGit(filepath.Join(homeDir, gitDir), filepath.Join(homeDir, ".ssh", "id_rsa"))
+  pullGit(gitDir, appConfig.SSHPrivateKey)
 
-  privateKeyPath:= filepath.Join(homeDir, ".gnupg/private.gpg")
+  privateKeyPath:= appConfig.GPGPrivateKey
   privateKey, err := ioutil.ReadFile(privateKeyPath)
 
   if err != nil {
@@ -230,7 +233,7 @@ func main() {
 
   } else if action == "push" {
 
-    publicKeyPath:= filepath.Join(homeDir, ".gnupg/public.gpg")
+    publicKeyPath:= appConfig.GPGPublicKey
     publicKey, err := ioutil.ReadFile(publicKeyPath)
 
     if err != nil {
@@ -238,7 +241,7 @@ func main() {
     }
 
     pushNotes(notesPath, encPath, publicKey)
-    pushGit(filepath.Join(homeDir, gitDir), encDir, filepath.Join(homeDir, ".ssh", "id_rsa"))
+    pushGit(gitDir, encDir, appConfig.SSHPrivateKey)
 
   } else {
 
