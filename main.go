@@ -145,7 +145,7 @@ func pullGit(repoPath string, privateKeyPath string) {
   }
 }
 
-func pushGit(repoPath string, privateKeyPath string) {
+func pushGit(repoPath string, encDir string,privateKeyPath string) {
 
   publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
 
@@ -166,7 +166,7 @@ func pushGit(repoPath string, privateKeyPath string) {
     log.Fatalln("Cant init worktree", err)
   }
 
-  _, err = w.Add("personal")
+  _, err = w.Add(encDir)
 
   if err != nil {
     log.Fatalln("Cant add files", err)
@@ -238,7 +238,7 @@ func main() {
     }
 
     pushNotes(notesPath, encPath, publicKey)
-    pushGit(filepath.Join(homeDir, gitDir), filepath.Join(homeDir, ".ssh", "id_rsa"))
+    pushGit(filepath.Join(homeDir, gitDir), encDir, filepath.Join(homeDir, ".ssh", "id_rsa"))
 
   } else {
 
