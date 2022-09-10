@@ -21,7 +21,7 @@
             pname = "note-sync";
             inherit version;
             src = ./.;
-            vendorSha256 = "sha256-PK1OOqf2VmgT8EcfPGKgL987KNvP6e+tERyqAA515d4=";
+            vendorSha256 = "sha256-8stczHNyKPa3l76i4VrFCMOXtfV9Uo3We2MOGp9GFYU=";
           };
         });
 
