@@ -200,6 +200,9 @@ func pushGit(repoPath string, encDir string, privateKeyPath string) {
 }
 
 func gracefulShutdown() {
+	appVersion := "v0.2"
+	appCopy := "(c)iaroki, 2023"
+	log.Printf("note-sync: %s, %s", appVersion, appCopy)
 	log.Println("Please use [pull] or [push] action.")
 	os.Exit(0)
 }
