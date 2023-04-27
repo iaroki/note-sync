@@ -17,235 +17,240 @@ import (
 )
 
 func encryptData(data []byte, publicKey []byte) (string, error) {
-  armor, err := helper.EncryptMessageArmored(string(publicKey), string(data))
+	armor, err := helper.EncryptMessageArmored(string(publicKey), string(data))
 
-  if err != nil {
-    log.Fatalln("Encrypt error", err)
-    return "", err
-  }
+	if err != nil {
+		log.Fatalln("Encrypt error", err)
+		return "", err
+	}
 
-  return armor, err
+	return armor, err
 
 }
 
 func decryptData(data []byte, passphrase []byte, privateKey []byte) (string, error) {
-  if len(passphrase) == 0 {
-    passphrase = nil
-  }
-  descryptedData, err := helper.DecryptMessageArmored(string(privateKey), passphrase, string(data))
+	if len(passphrase) == 0 {
+		passphrase = nil
+	}
+	descryptedData, err := helper.DecryptMessageArmored(string(privateKey), passphrase, string(data))
 
-  if err != nil {
-    log.Fatalln("Decrypt error", err)
-    return "", err
-  }
+	if err != nil {
+		log.Fatalln("Decrypt error", err)
+		return "", err
+	}
 
-  return descryptedData, err
+	return descryptedData, err
 
 }
 
-func getNotes(path string) []string {
+func getNotes(rootPath string) []string {
 
-  notesList := []string{}
+	notesList := []string{}
 
-  err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
-    if err != nil {
-            log.Println(err)
-            return err
-        }
-        if !info.IsDir() {
-          notesList = append(notesList, filepath.Base(path))
-        }
-        return nil
-    })
-    if err != nil {
-        log.Fatal(err)
-    }
+	err := filepath.Walk(rootPath, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+		if !info.IsDir() && strings.Contains(filePath, ".md") {
+			notesList = append(notesList, filePath)
+		}
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-  return notesList
+	return notesList
 }
 
 func writeNote(path string, data string) {
-  err := ioutil.WriteFile(path, []byte(data), fs.FileMode(0644))
-  if err != nil {
-    log.Fatalln("Cant write file", err)
-  }
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		log.Fatalln("Can't create directories", err)
+	}
+	err = ioutil.WriteFile(path, []byte(data), fs.FileMode(0644))
+	if err != nil {
+		log.Fatalln("Can't write file", err)
+	}
+	log.Println("Written:", path)
 }
 
 func pushNotes(notesPath string, encPath string, publicKey []byte) {
-  notesList := getNotes(notesPath)
-    for _, file := range(notesList) {
-      log.Println("Processing ", file)
-      data, err := ioutil.ReadFile(filepath.Join(notesPath, file))
+	notesList := getNotes(notesPath)
+	for _, noteFile := range notesList {
+		log.Println("Processing:", noteFile)
+		data, err := ioutil.ReadFile(noteFile)
 
-      if err != nil {
-        log.Fatalln("Cant open note file", err)
-      }
+		if err != nil {
+			log.Fatalln("Can't open note file", err)
+		}
 
-      encFile := filepath.Join(encPath, file) + ".gpg"
-      encData, err := encryptData(data, publicKey)
+		encFile := strings.Replace(noteFile, notesPath, encPath, 1) + ".gpg"
+		encData, err := encryptData(data, publicKey)
 
-      if err != nil {
-        log.Fatalln("Cant encrypt data", err)
-      }
+		if err != nil {
+			log.Fatalln("Can't encrypt data", err)
+		}
 
-      writeNote(encFile, encData)
-    }
+		writeNote(encFile, encData)
+	}
 }
 
-func pullNotes(notesPath string, encPath string, passphrase string, privateKey []byte){
-  notesList := getNotes(encPath)
-    for _, file := range(notesList) {
-      log.Println("Processing ", file)
-      data, err := ioutil.ReadFile(filepath.Join(encPath, file))
+func pullNotes(notesPath string, encPath string, passphrase string, privateKey []byte) {
+	notesList := getNotes(encPath)
+	for _, noteFile := range notesList {
+		log.Println("Processing:", noteFile)
+		data, err := ioutil.ReadFile(noteFile)
 
-      if err != nil {
-        log.Fatalln("Cant open note file", err)
-      }
+		if err != nil {
+			log.Fatalln("Can't open note file", err)
+		}
 
-      decFile := filepath.Join(notesPath, strings.TrimRight(file, ".gpg"))
-      decData, err := decryptData(data, []byte(passphrase), privateKey)
+		decFile := strings.TrimRight(strings.Replace(noteFile, encPath, notesPath, 1), ".gpg")
+		decData, err := decryptData(data, []byte(passphrase), privateKey)
 
-      if err != nil {
-        log.Fatalln("Cant decrypt data", err)
-      }
+		if err != nil {
+			log.Fatalln("Can't decrypt data", err)
+		}
 
-      writeNote(decFile, decData)
-    }
+		writeNote(decFile, decData)
+	}
 
 }
 
 func pullGit(repoPath string, privateKeyPath string) {
 
-  publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
+	publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
 
-  if err != nil {
-    log.Fatalln("Cant init ssh key", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't init ssh key", err)
+	}
 
-  log.Println("=> Pulling the repo: ", repoPath)
-  r, err := git.PlainOpen(repoPath)
+	log.Println("=> Pulling the repo: ", repoPath)
+	r, err := git.PlainOpen(repoPath)
 
-  if err != nil {
-    log.Fatalln("Cant open repo", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't open repo", err)
+	}
 
-  w, err := r.Worktree()
+	w, err := r.Worktree()
 
-  if err != nil {
-    log.Fatalln("Cant init worktree", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't init worktree", err)
+	}
 
-  err = w.Pull(&git.PullOptions{
-    RemoteName: "origin",
-    Auth: publicKeys,
-  })
+	err = w.Pull(&git.PullOptions{
+		RemoteName: "origin",
+		Auth:       publicKeys,
+	})
 
-  if err != nil {
-    log.Println("==> ", err)
-  }
+	if err != nil {
+		log.Println("==> ", err)
+	}
 }
 
-func pushGit(repoPath string, encDir string,privateKeyPath string) {
+func pushGit(repoPath string, encDir string, privateKeyPath string) {
 
-  publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
+	publicKeys, err := ssh.NewPublicKeysFromFile("git", privateKeyPath, "")
 
-  if err != nil {
-    log.Fatalln("Cant init ssh key", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't init ssh key", err)
+	}
 
-  log.Println("=> Pushing the repo: ", repoPath)
-  r, err := git.PlainOpen(repoPath)
+	log.Println("=> Pushing the repo: ", repoPath)
+	r, err := git.PlainOpen(repoPath)
 
-  if err != nil {
-    log.Fatalln("Cant open repo", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't open repo", err)
+	}
 
-  w, err := r.Worktree()
+	w, err := r.Worktree()
 
-  if err != nil {
-    log.Fatalln("Cant init worktree", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't init worktree", err)
+	}
 
-  _, err = w.Add(encDir)
+	_, err = w.Add(encDir)
 
-  if err != nil {
-    log.Fatalln("Cant add files", err)
-  }
+	if err != nil {
+		log.Fatalln("Can't add files", err)
+	}
 
-  _, err = w.Commit("Auto update", &git.CommitOptions{
+	_, err = w.Commit("Auto update", &git.CommitOptions{
 		Author: &object.Signature{
 			Name:  "iaroki",
 			Email: "iaroki@protonmail.com",
 			When:  time.Now(),
 		},
-  })
+	})
 
-  if err != nil {
-    log.Fatalln("Cant commit files", err)
-  }
+	if err != nil {
+		log.Fatalln("Error committing files", err)
+	}
 
-  err = r.Push(&git.PushOptions{
-    RemoteName: "origin",
-    Auth: publicKeys,
-  })
+	err = r.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       publicKeys,
+	})
 
-  if err != nil {
-    log.Println("==> ", err)
-  }
+	if err != nil {
+		log.Println("==> ", err)
+	}
 }
 
 func gracefulShutdown() {
-  log.Println("Please use [pull] or [push] action.")
-  os.Exit(0)
+	log.Println("Please use [pull] or [push] action.")
+	os.Exit(0)
 }
 
 func main() {
 
-  var action string
-  if len(os.Args) == 2 {
-    action = os.Args[1]
-  } else {
-    gracefulShutdown()
-  }
+	var action string
+	if len(os.Args) == 2 {
+		action = os.Args[1]
+	} else {
+		gracefulShutdown()
+	}
 
-  configPath := findConfig()
-  appConfig := getConfig(configPath)
+	configPath := findConfig()
+	appConfig := getConfig(configPath)
 
-  homeDir, _ := homedir.Dir()
-  notesDir := appConfig.NotesDir
-  gitDir := appConfig.GitDir
-  encDir := appConfig.EncDir
-  notesPath := filepath.Join(homeDir, notesDir)
-  encPath := filepath.Join(gitDir, encDir)
+	homeDir, _ := homedir.Dir()
+	notesDir := appConfig.NotesDir
+	gitDir := appConfig.GitDir
+	encDir := appConfig.EncDir
+	notesPath := filepath.Join(homeDir, notesDir)
+	encPath := filepath.Join(gitDir, encDir)
 
-  if action == "pull" {
+	if action == "pull" {
 
-  pullGit(gitDir, appConfig.SSHPrivateKey)
+		pullGit(gitDir, appConfig.SSHPrivateKey)
 
-  privateKeyPath:= appConfig.GPGPrivateKey
-  privateKey, err := ioutil.ReadFile(privateKeyPath)
+		privateKeyPath := appConfig.GPGPrivateKey
+		privateKey, err := ioutil.ReadFile(privateKeyPath)
 
-  if err != nil {
-    log.Fatalln("Cant open private key file", err)
-  }
+		if err != nil {
+			log.Fatalln("Can't open private key file", err)
+		}
 
-  pullNotes(notesPath, encPath, "", privateKey)
+		pullNotes(notesPath, encPath, "", privateKey)
 
-  } else if action == "push" {
+	} else if action == "push" {
 
-    publicKeyPath:= appConfig.GPGPublicKey
-    publicKey, err := ioutil.ReadFile(publicKeyPath)
+		publicKeyPath := appConfig.GPGPublicKey
+		publicKey, err := ioutil.ReadFile(publicKeyPath)
 
-    if err != nil {
-      log.Fatalln("Cant open public key file", err)
-    }
+		if err != nil {
+			log.Fatalln("Can't open public key file", err)
+		}
 
-    pushNotes(notesPath, encPath, publicKey)
-    pushGit(gitDir, encDir, appConfig.SSHPrivateKey)
+		pushNotes(notesPath, encPath, publicKey)
+		pushGit(gitDir, encDir, appConfig.SSHPrivateKey)
 
-  } else {
+	} else {
 
-    gracefulShutdown()
-  }
+		gracefulShutdown()
+	}
 
 }
